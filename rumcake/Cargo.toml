@@ -38,7 +38,7 @@ libm = "0.2.7"
 
 # serialization for split keyboard setups
 serde = { version = "1.0.188", default-features = false, features = ["derive"] }
-postcard = "1.0.7"
+postcard = { version = "1.0.7", features = ["experimental-derive"] }
 
 # third party utilities for dealing with rgb values
 smart-leds = "0.3.0"

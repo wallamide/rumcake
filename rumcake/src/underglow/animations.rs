@@ -4,6 +4,7 @@ use super::drivers::UnderglowDriver;
 use super::{UnderglowDevice, UNDERGLOW_CONFIG_STATE};
 use crate::math::sin;
 use crate::{Cycle, LEDEffect};
+use postcard::experimental::max_size::MaxSize;
 use rumcake_macros::{generate_items_from_enum_variants, Cycle, LEDEffect};
 
 use defmt::{error, warn, Debug2Format};
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use smart_leds::hsv::{hsv2rgb, Hsv};
 use smart_leds::RGB8;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, MaxSize)]
 pub struct UnderglowConfig {
     pub enabled: bool,
     pub effect: UnderglowEffect,
@@ -66,7 +67,17 @@ pub enum UnderglowCommand {
 
 #[generate_items_from_enum_variants("const {variant_shouty_snake_case}_ENABLED: bool = true")]
 #[derive(
-    FromPrimitive, Serialize, Deserialize, Debug, Clone, Copy, LEDEffect, Cycle, PartialEq, Eq,
+    FromPrimitive,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    LEDEffect,
+    Cycle,
+    PartialEq,
+    Eq,
+    MaxSize,
 )]
 pub enum UnderglowEffect {
     Solid,

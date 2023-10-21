@@ -199,6 +199,8 @@ struct KeyboardArgs {
     #[darling(default)]
     no_matrix: bool,
     #[darling(default)]
+    no_storage: bool,
+    #[darling(default)]
     bluetooth: bool,
     #[darling(default)]
     usb: bool,
@@ -323,6 +325,16 @@ pub fn main(
         }
     }
 
+    // Flash setup
+    if !keyboard.no_storage {
+        initialization.extend(quote! {
+            let storage_driver = rumcake::hw::setup_storage_driver();
+        });
+        spawning.extend(quote! {
+            spawner.spawn(rumcake::storage_task!(storage_driver)).unwrap();
+        });
+    }
+
     if keyboard.bluetooth || keyboard.usb {
         initialization.extend(quote! {
             let layout = rumcake::setup_keyboard_layout!(#kb_name);
@@ -365,39 +377,39 @@ pub fn main(
         });
     }
 
-    #[cfg(feature = "eeprom")]
-    initialization.extend(quote! {
-        // Flash setup
-        let raw_hid_flash = rumcake::hw::mcu::setup_flash();
-    });
+    // #[cfg(feature = "eeprom")]
+    // initialization.extend(quote! {
+    //     // Flash setup
+    //     let raw_hid_flash = rumcake::hw::mcu::setup_flash();
+    // });
 
-    // The appropriate via/vial request handler built by `setup_raw_hid_request_handler` is chosen based on the feature flags set on `rumcake`.
-    #[cfg(feature = "via")]
-    {
-        initialization.extend(quote! {
-            // Via HID setup
-            let (via_reader, via_writer) =
-                rumcake::via::setup_usb_via_hid_reader_writer(&mut builder).split();
-        });
-        spawning.extend(quote! {
-            // HID raw report (for VIA) reading and writing
-            spawner
-                .spawn(rumcake::usb_hid_via_read_task!(via_reader))
-                .unwrap();
-        })
-    }
+    // // The appropriate via/vial request handler built by `setup_raw_hid_request_handler` is chosen based on the feature flags set on `rumcake`.
+    // #[cfg(feature = "via")]
+    // {
+    //     initialization.extend(quote! {
+    //         // Via HID setup
+    //         let (via_reader, via_writer) =
+    //             rumcake::via::setup_usb_via_hid_reader_writer(&mut builder).split();
+    //     });
+    //     spawning.extend(quote! {
+    //         // HID raw report (for VIA) reading and writing
+    //         spawner
+    //             .spawn(rumcake::usb_hid_via_read_task!(via_reader))
+    //             .unwrap();
+    //     })
+    // }
 
-    #[cfg(all(feature = "via", not(feature = "vial")))]
-    spawning.extend(quote! {
-        spawner.spawn(rumcake::usb_hid_via_write_task!(#kb_name, debouncer, raw_hid_flash, via_writer)).unwrap();
-    });
+    // #[cfg(all(feature = "via", not(feature = "vial")))]
+    // spawning.extend(quote! {
+    //     spawner.spawn(rumcake::usb_hid_via_write_task!(#kb_name, debouncer, raw_hid_flash, via_writer)).unwrap();
+    // });
 
-    #[cfg(feature = "vial")]
-    spawning.extend(quote! {
-        spawner
-            .spawn(rumcake::usb_hid_vial_write_task!(#kb_name, debouncer, raw_hid_flash, via_writer))
-            .unwrap();
-    });
+    // #[cfg(feature = "vial")]
+    // spawning.extend(quote! {
+    //     spawner
+    //         .spawn(rumcake::usb_hid_vial_write_task!(#kb_name, debouncer, raw_hid_flash, via_writer))
+    //         .unwrap();
+    // });
 
     // Split keyboard setup
     if let Some(ref driver) = keyboard.split_peripheral {
