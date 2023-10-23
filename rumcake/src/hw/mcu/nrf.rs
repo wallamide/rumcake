@@ -120,7 +120,7 @@ pub fn setup_flash() -> &'static mut Mutex<ThreadModeRawMutex, impl NorFlash> {
     }
 }
 
-pub fn setup_internal_flash() -> impl NorFlash {
+pub fn setup_internal_flash() -> Nvmc<'static> {
     unsafe { Nvmc::new(embassy_nrf::peripherals::NVMC::steal()) }
 }
 
