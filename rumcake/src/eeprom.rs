@@ -264,12 +264,6 @@ impl<T: 'static + DeserializeOwned + Serialize + MaxSize, const K: u8, const N: 
     }
 }
 
-enum StorageError<E> {
-    ReadError(ReadError<E>),
-    DeserializationError,
-    WriteError(WriteError<E>),
-}
-
 pub trait KeyboardWithEEPROM: Keyboard {
     // Probably not using these.
     const EECONFIG_KB_DATA_SIZE: usize = 0; // This is the default if it is not set in QMK
@@ -304,18 +298,6 @@ pub trait KeyboardWithEEPROM: Keyboard {
     const EEPROM_TOTAL_BYTE_COUNT: usize = Self::EECONFIG_SIZE + 3;
 }
 
-async fn initialize_services(database: &Database<impl Flash, NoopRawMutex>) -> Result<(), ()> {
-    #[cfg(feature = "backlight")]
-    crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
-        .initialize(database)
-        .await?;
-    #[cfg(feature = "underglow")]
-    crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
-        .initialize(database)
-        .await?;
-    Ok(())
-}
-
 static EMPTY_SIGNAL: Signal<ThreadModeRawMutex, ()> = Signal::new();
 
 #[rumcake_macros::task]
@@ -333,9 +315,16 @@ pub async fn storage_task(driver: impl Flash) {
     };
 
     // Initialize all services
-    if let Err(()) = initialize_services(&database).await {
-        panic!("[STORAGE] Could not initialize storage services.");
-    };
+    #[cfg(feature = "backlight")]
+    crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
+        .initialize(&database)
+        .await
+        .unwrap();
+    #[cfg(feature = "underglow")]
+    crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
+        .initialize(&database)
+        .await
+        .unwrap();
 
     loop {
         let ((), index) = select::select_array([
