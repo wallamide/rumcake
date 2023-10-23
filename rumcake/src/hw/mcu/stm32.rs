@@ -131,6 +131,10 @@ pub fn setup_flash() -> &'static mut Mutex<ThreadModeRawMutex, impl NorFlash> {
     }
 }
 
+pub fn setup_internal_flash() -> Flash<'static, Blocking> {
+    unsafe { Flash::new_blocking(FLASH::steal()) }
+}
+
 #[macro_export]
 macro_rules! setup_i2c {
     ($interrupt:ident, $i2c:ident, $scl:ident, $sda:ident, $rxdma:ident, $txdma:ident) => {

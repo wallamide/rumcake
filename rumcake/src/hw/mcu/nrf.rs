@@ -120,6 +120,10 @@ pub fn setup_flash() -> &'static mut Mutex<ThreadModeRawMutex, impl NorFlash> {
     }
 }
 
+pub fn setup_internal_flash() -> Nvmc<'static> {
+    unsafe { Nvmc::new(embassy_nrf::peripherals::NVMC::steal()) }
+}
+
 #[rumcake_macros::task]
 pub async fn adc_task() {
     let mut adc = unsafe {

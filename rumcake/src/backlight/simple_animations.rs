@@ -2,6 +2,7 @@ use super::drivers::SimpleBacklightDriver;
 use super::BacklightDevice;
 use crate::math::sin;
 use crate::{Cycle, LEDEffect};
+use postcard::experimental::max_size::MaxSize;
 use rumcake_macros::{generate_items_from_enum_variants, Cycle, LEDEffect};
 
 use core::marker::PhantomData;
@@ -14,7 +15,7 @@ use rand_core::SeedableRng;
 use ringbuffer::RingBuffer;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, MaxSize)]
 pub struct BacklightConfig {
     pub enabled: bool,
     pub effect: BacklightEffect,
@@ -57,7 +58,17 @@ pub enum BacklightCommand {
 
 #[generate_items_from_enum_variants("const {variant_shouty_snake_case}_ENABLED: bool = true")]
 #[derive(
-    FromPrimitive, Serialize, Deserialize, Debug, Clone, Copy, LEDEffect, Cycle, PartialEq, Eq,
+    FromPrimitive,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    Copy,
+    LEDEffect,
+    Cycle,
+    PartialEq,
+    Eq,
+    MaxSize,
 )]
 pub enum BacklightEffect {
     Solid,
