@@ -131,7 +131,7 @@ pub fn setup_flash() -> &'static mut Mutex<ThreadModeRawMutex, impl NorFlash> {
     }
 }
 
-pub fn setup_internal_flash() -> impl NorFlash {
+pub fn setup_internal_flash() -> Flash<'static, Blocking> {
     unsafe { Flash::new_blocking(FLASH::steal()) }
 }
 
