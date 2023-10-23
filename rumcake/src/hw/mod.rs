@@ -61,7 +61,6 @@ pub fn setup_storage_driver<F: NorFlash>(
     }
 }
 
-/// Storage driver intended for internal flash
 pub struct FlashDevice<F: NorFlash> {
     flash: F,
     start: usize,
