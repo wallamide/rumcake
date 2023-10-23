@@ -52,8 +52,10 @@ pub static UNDERGLOW_COMMAND_CHANNEL: Channel<ThreadModeRawMutex, UnderglowComma
     Channel::new();
 
 /// State that contains the current configuration for the underglow animator.
-pub static UNDERGLOW_CONFIG_STATE: State<UnderglowConfig> =
-    State::new(UnderglowConfig::default(), &[]);
+pub static UNDERGLOW_CONFIG_STATE: State<UnderglowConfig> = State::new(
+    UnderglowConfig::default(),
+    &[&UNDERGLOW_CONFIG_STATE_LISTENER],
+);
 
 static UNDERGLOW_CONFIG_STATE_LISTENER: Signal<ThreadModeRawMutex, ()> = Signal::new();
 
