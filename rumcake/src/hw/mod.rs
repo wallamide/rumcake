@@ -72,7 +72,7 @@ impl<F: NorFlash> FlashController<{ F::ERASE_SIZE }> for FlashDevice<F> {
         let address = self.start + region_number * F::ERASE_SIZE + offset;
 
         debug!(
-            "[STORAGE_DRIVER] Reading {} bytes from config page {}, offset {} (address = {})",
+            "[STORAGE_DRIVER] Reading {} bytes from config page {}, offset {} (address = {:x})",
             buf.len(),
             region_number,
             offset,
@@ -92,7 +92,7 @@ impl<F: NorFlash> FlashController<{ F::ERASE_SIZE }> for FlashDevice<F> {
 
     fn write(&self, address: usize, buf: &[u8]) -> Result<(), tickv::ErrorCode> {
         debug!(
-            "[STORAGE_DRIVER] Writing to address {} (config page {}, offset {}). data: {}",
+            "[STORAGE_DRIVER] Writing to address {:x} (config page {}, offset {}). data: {}",
             address,
             address / F::ERASE_SIZE,
             address % F::ERASE_SIZE,
@@ -147,7 +147,7 @@ impl<F: NorFlash> FlashController<{ F::ERASE_SIZE }> for FlashDevice<F> {
         let end = self.start + region_number * F::ERASE_SIZE + F::ERASE_SIZE;
 
         debug!(
-            "[STORAGE_DRIVER] Erasing config page {} (start addr = {}, end addr = {}).",
+            "[STORAGE_DRIVER] Erasing config page {} (start addr = {:x}, end addr = {:x}).",
             region_number, start, end
         );
 
