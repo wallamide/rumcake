@@ -328,7 +328,7 @@ pub fn main(
     // Flash setup
     if !keyboard.no_storage {
         initialization.extend(quote! {
-            let storage_driver = rumcake::hw::setup_storage_driver();
+            let storage_driver = rumcake::hw::setup_storage_driver(rumcake::hw::mcu::setup_internal_flash(), unsafe { &rumcake::hw::__config_start as *const u32 as usize }, unsafe { &rumcake::hw::__config_end as *const u32 as usize });
         });
         spawning.extend(quote! {
             spawner.spawn(rumcake::storage_task!(storage_driver)).unwrap();

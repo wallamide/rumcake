@@ -28,17 +28,19 @@ use self::mcu::setup_internal_flash;
 
 extern "C" {
     // Comes from memory.x
-    pub(crate) static __config_start: u32;
-    pub(crate) static __config_end: u32;
+    pub static __config_start: u32;
+    pub static __config_end: u32;
 }
 
 #[repr(C, align(4))]
 struct AlignedBuf([u8; config::PAGE_SIZE]);
 
-pub fn setup_storage_driver() -> InternalFlashDriver<impl NorFlash> {
+pub fn setup_storage_driver<F: NorFlash>(
+    driver: F,
+    config_start: usize,
+    config_end: usize,
+) -> FlashDevice<F> {
     // Check config partition before moving on
-    let config_start = unsafe { &__config_start as *const u32 as usize };
-    let config_end = unsafe { &__config_end as *const u32 as usize };
     assert!(
         config_start < config_end,
         "Config end address must be greater than the start address."
@@ -52,30 +54,31 @@ pub fn setup_storage_driver() -> InternalFlashDriver<impl NorFlash> {
         "Config partition must start on an address that is a multiple of the page size."
     );
 
-    InternalFlashDriver {
-        flash: setup_internal_flash(),
+    FlashDevice {
+        flash: driver,
+        start: config_start,
+        end: config_end,
     }
 }
 
 /// Storage driver intended for internal flash
-pub struct InternalFlashDriver<F: NorFlash> {
+pub struct FlashDevice<F: NorFlash> {
     flash: F,
+    start: usize,
+    end: usize,
 }
 
-impl<F: NorFlash> ekv::flash::Flash for InternalFlashDriver<F> {
+impl<F: NorFlash> ekv::flash::Flash for FlashDevice<F> {
     type Error = F::Error;
 
     fn page_count(&self) -> usize {
-        let config_start = unsafe { &__config_start as *const u32 as usize };
-        let config_end = unsafe { &__config_end as *const u32 as usize };
-        (config_end - config_start) / ekv::config::PAGE_SIZE
+        (self.end - self.start) / ekv::config::PAGE_SIZE
     }
 
     async fn erase(&mut self, page_id: ekv::flash::PageID) -> Result<(), Self::Error> {
-        let config_start = unsafe { &__config_start as *const u32 as usize };
         let page_index = page_id.index();
-        let start = config_start + page_index * config::PAGE_SIZE;
-        let end = config_start + page_index * config::PAGE_SIZE + config::PAGE_SIZE;
+        let start = self.start + page_index * config::PAGE_SIZE;
+        let end = self.start + page_index * config::PAGE_SIZE + config::PAGE_SIZE;
         info!(
             "[STORAGE] Erasing page {}. Start addr = {}, End addr = {}, PS = {}",
             page_index,
@@ -92,13 +95,12 @@ impl<F: NorFlash> ekv::flash::Flash for InternalFlashDriver<F> {
         offset: usize,
         data: &mut [u8],
     ) -> Result<(), Self::Error> {
-        let config_start = unsafe { &__config_start as *const u32 as usize };
         let page_index = page_id.index();
         info!(
             "[STORAGE] Reading from page {}, offset {}",
             page_index, offset
         );
-        let address = config_start + page_index * config::PAGE_SIZE + offset;
+        let address = self.start + page_index * config::PAGE_SIZE + offset;
         let mut buf = AlignedBuf([0; config::PAGE_SIZE]);
         self.flash.read(address as u32, &mut buf.0[..data.len()])?;
         data.copy_from_slice(&buf.0[..data.len()]);
@@ -111,13 +113,12 @@ impl<F: NorFlash> ekv::flash::Flash for InternalFlashDriver<F> {
         offset: usize,
         data: &[u8],
     ) -> Result<(), Self::Error> {
-        let config_start = unsafe { &__config_start as *const u32 as usize };
         let page_index = page_id.index();
         info!(
             "[STORAGE] Writing to page {}, offset {}, data: {}",
             page_index, offset, data
         );
-        let address = config_start + page_index * config::PAGE_SIZE + offset;
+        let address = self.start + page_index * config::PAGE_SIZE + offset;
         let mut buf = AlignedBuf([0; config::PAGE_SIZE]);
         buf.0[..data.len()].copy_from_slice(data);
         self.flash.write(address as u32, &buf.0[..data.len()])
