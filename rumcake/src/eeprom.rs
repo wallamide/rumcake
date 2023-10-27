@@ -72,10 +72,8 @@ pub struct StorageServiceState<T: 'static + DeserializeOwned + Serialize + MaxSi
 where
     [(); T::POSTCARD_MAX_SIZE]:,
 {
-    stored_type_id: [u8; size_of::<TypeId>()],
-    cur_type_id: [u8; size_of::<TypeId>()],
-    stored_value: [u8; T::POSTCARD_MAX_SIZE],
-    new_value: [u8; T::POSTCARD_MAX_SIZE],
+    type_id_buf: [u8; size_of::<TypeId>()],
+    value_buf: [u8; T::POSTCARD_MAX_SIZE],
 }
 
 impl<T: 'static + DeserializeOwned + Serialize + MaxSize> StorageServiceState<T>
@@ -84,10 +82,8 @@ where
 {
     pub const fn new() -> Self {
         Self {
-            stored_type_id: [0; size_of::<TypeId>()],
-            cur_type_id: [0; size_of::<TypeId>()],
-            stored_value: [0; T::POSTCARD_MAX_SIZE],
-            new_value: [0; T::POSTCARD_MAX_SIZE],
+            type_id_buf: [0; size_of::<TypeId>()],
+            value_buf: [0; T::POSTCARD_MAX_SIZE],
         }
     }
 }
@@ -116,35 +112,35 @@ where
         database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
         state: &'static mut StorageServiceState<T>,
     ) -> Result<(), ()> {
-        let stored = &mut state.stored_type_id;
-        let cur = &mut state.cur_type_id;
+        let buf = &mut state.type_id_buf;
 
         let current: [u8; size_of::<TypeId>()] = unsafe { core::mem::transmute(TypeId::of::<T>()) };
-        cur.copy_from_slice(&current);
 
         // Verify if the underlying data type has changed since last boot
-        let will_reset = match get_key(database, &[K, StorageKeyType::Metadata as u8], stored).await
-        {
-            (Ok(_), Some(type_id_buf), _len) => {
-                let changed = *cur != *type_id_buf;
-                if changed {
-                    warn!(
-                        "[STORAGE] Metadata for {} has changed.",
-                        Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
-                    );
+        let (will_reset, buf) =
+            match get_key(database, &[K, StorageKeyType::Metadata as u8], buf).await {
+                (Ok(_), Some(buf), _len) => {
+                    let changed = current != *buf;
+                    if changed {
+                        warn!(
+                            "[STORAGE] Metadata for {} has changed.",
+                            Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
+                        );
+                    }
+                    (changed, buf)
                 }
-                changed
-            }
-            (Err(error), _buf, _len) => {
-                warn!(
-                    "[STORAGE] Could not read metadata for {}: {}",
-                    Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
-                    Debug2Format(&error)
-                );
-                true
-            }
-            _ => unreachable!(),
-        };
+                (Err(error), Some(buf), _len) => {
+                    warn!(
+                        "[STORAGE] Could not read metadata for {}: {}",
+                        Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
+                        Debug2Format(&error)
+                    );
+                    (true, buf)
+                }
+                _ => unreachable!(),
+            };
+
+        buf.copy_from_slice(&current);
 
         // If the data type has changed, remove the old data from storage, update the metadata
         if will_reset {
@@ -159,8 +155,8 @@ where
             garbage_collect(database).await.0.unwrap();
 
             // Add new metadata
-            let length = cur.len();
-            append_key(database, &[K, StorageKeyType::Metadata as u8], cur, length)
+            let length = buf.len();
+            append_key(database, &[K, StorageKeyType::Metadata as u8], buf, length)
                 .await
                 .0
                 .unwrap();
@@ -178,8 +174,8 @@ where
     ) where
         [(); T::POSTCARD_MAX_SIZE]:,
     {
-        let stored_value_buf = &mut state.stored_value;
-        let new_value_buf = &mut state.new_value;
+        let buf = &mut state.value_buf;
+
         match req {
             StorageRequest::Read => {
                 info!(
@@ -189,7 +185,7 @@ where
 
                 let result = {
                     let (result, buf, _len) =
-                        get_key(database, &[K, StorageKeyType::Data as u8], stored_value_buf).await;
+                        get_key(database, &[K, StorageKeyType::Data as u8], buf).await;
 
                     result
                         .map_err(|error| {
@@ -224,7 +220,7 @@ where
                 );
 
                 let result = {
-                    match postcard::to_slice(&data, new_value_buf) {
+                    match postcard::to_slice(&data, buf) {
                         Ok(serialized) => {
                             let _ =
                                 invalidate_key(database, &[K, StorageKeyType::Data as u8]).await;
