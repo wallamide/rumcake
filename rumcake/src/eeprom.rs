@@ -2,19 +2,20 @@ use core::any::TypeId;
 use core::hash::{Hash, Hasher, SipHasher};
 use core::mem::size_of;
 
-use defmt::{error, info, panic, warn, Debug2Format};
-use embassy_futures::{join, select};
-use embassy_sync::blocking_mutex::raw::{NoopRawMutex, ThreadModeRawMutex};
+use defmt::{error, info, warn, Debug2Format};
+use embassy_futures::select;
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::channel::{Channel, Sender};
 use embassy_sync::signal::Signal;
-use embedded_storage::nor_flash::NorFlash;
+use embedded_storage_async::nor_flash::NorFlash;
 use num_derive::FromPrimitive;
 use postcard::experimental::max_size::MaxSize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use tickv::{TicKV, MAIN_KEY};
+use tickv::success_codes::SuccessCode;
+use tickv::{AsyncTicKV, ErrorCode, MAIN_KEY};
 
-use crate::hw::FlashDevice;
+use crate::hw::{FlashDevice, PendingOperation};
 use crate::keyboard::Keyboard;
 
 fn get_hashed_key(key: &[u8]) -> u64 {
@@ -53,7 +54,9 @@ pub struct StorageService<
     T: 'static + DeserializeOwned + Serialize + MaxSize,
     const K: u8,
     const N: usize,
-> {
+> where
+    [(); T::POSTCARD_MAX_SIZE]:,
+{
     requests: Channel<
         ThreadModeRawMutex,
         (
@@ -65,8 +68,34 @@ pub struct StorageService<
     pub(crate) signal: Signal<ThreadModeRawMutex, ()>,
 }
 
+pub struct StorageServiceState<T: 'static + DeserializeOwned + Serialize + MaxSize>
+where
+    [(); T::POSTCARD_MAX_SIZE]:,
+{
+    stored_type_id: [u8; size_of::<TypeId>()],
+    cur_type_id: [u8; size_of::<TypeId>()],
+    stored_value: [u8; T::POSTCARD_MAX_SIZE],
+    new_value: [u8; T::POSTCARD_MAX_SIZE],
+}
+
+impl<T: 'static + DeserializeOwned + Serialize + MaxSize> StorageServiceState<T>
+where
+    [(); T::POSTCARD_MAX_SIZE]:,
+{
+    pub const fn new() -> Self {
+        Self {
+            stored_type_id: [0; size_of::<TypeId>()],
+            cur_type_id: [0; size_of::<TypeId>()],
+            stored_value: [0; T::POSTCARD_MAX_SIZE],
+            new_value: [0; T::POSTCARD_MAX_SIZE],
+        }
+    }
+}
+
 impl<T: Clone + Send + DeserializeOwned + Serialize + MaxSize, const K: u8, const N: usize>
     StorageService<T, K, N>
+where
+    [(); T::POSTCARD_MAX_SIZE]:,
 {
     pub const fn new() -> Self {
         StorageService {
@@ -83,20 +112,21 @@ impl<T: Clone + Send + DeserializeOwned + Serialize + MaxSize, const K: u8, cons
     }
 
     pub async fn initialize<F: NorFlash>(
-        &self,
-        database: &TicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
+        &'static self,
+        database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
+        state: &'static mut StorageServiceState<T>,
     ) -> Result<(), ()> {
-        let cur_type_id: [u8; size_of::<TypeId>()] =
-            unsafe { core::mem::transmute(TypeId::of::<T>()) };
+        let stored = &mut state.stored_type_id;
+        let cur = &mut state.cur_type_id;
+
+        let current: [u8; size_of::<TypeId>()] = unsafe { core::mem::transmute(TypeId::of::<T>()) };
+        cur.copy_from_slice(&current);
 
         // Verify if the underlying data type has changed since last boot
-        let mut stored_type_id = [0; size_of::<TypeId>()];
-        let will_reset = match database.get_key(
-            get_hashed_key(&[K, StorageKeyType::Metadata as u8]),
-            &mut stored_type_id,
-        ) {
-            Ok(_) => {
-                let changed = cur_type_id != stored_type_id;
+        let will_reset = match get_key(database, &[K, StorageKeyType::Metadata as u8], stored).await
+        {
+            (Ok(_), Some(type_id_buf), _len) => {
+                let changed = *cur != *type_id_buf;
                 if changed {
                     warn!(
                         "[STORAGE] Metadata for {} has changed.",
@@ -105,7 +135,7 @@ impl<T: Clone + Send + DeserializeOwned + Serialize + MaxSize, const K: u8, cons
                 }
                 changed
             }
-            Err(error) => {
+            (Err(error), _buf, _len) => {
                 warn!(
                     "[STORAGE] Could not read metadata for {}: {}",
                     Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
@@ -113,6 +143,7 @@ impl<T: Clone + Send + DeserializeOwned + Serialize + MaxSize, const K: u8, cons
                 );
                 true
             }
+            _ => unreachable!(),
         };
 
         // If the data type has changed, remove the old data from storage, update the metadata
@@ -123,130 +154,134 @@ impl<T: Clone + Send + DeserializeOwned + Serialize + MaxSize, const K: u8, cons
             );
 
             // Invalidate old data
-            let _ = database.invalidate_key(get_hashed_key(&[K, StorageKeyType::Data as u8]));
-            let _ = database.invalidate_key(get_hashed_key(&[K, StorageKeyType::Metadata as u8]));
-            database.garbage_collect().unwrap();
+            let _ = invalidate_key(database, &[K, StorageKeyType::Data as u8]).await;
+            let _ = invalidate_key(database, &[K, StorageKeyType::Metadata as u8]).await;
+            garbage_collect(database).await.0.unwrap();
 
             // Add new metadata
-            database
-                .append_key(
-                    get_hashed_key(&[K, StorageKeyType::Metadata as u8]),
-                    &cur_type_id,
-                )
+            let length = cur.len();
+            append_key(database, &[K, StorageKeyType::Metadata as u8], cur, length)
+                .await
+                .0
                 .unwrap();
         }
 
         Ok(())
     }
 
-    pub async fn handle_requests<F: NorFlash>(
-        &self,
-        database: &TicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
+    pub async fn handle_request<F: NorFlash>(
+        &'static self,
+        database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
+        state: &'static mut StorageServiceState<T>,
+        req: StorageRequest<T>,
+        response_channel: Sender<'static, ThreadModeRawMutex, StorageResponse<T>, N>,
     ) where
         [(); T::POSTCARD_MAX_SIZE]:,
     {
-        while let Ok((req, response_channel)) = self.requests.try_receive() {
-            match req {
-                StorageRequest::Read => {
-                    info!(
-                        "[STORAGE] Reading {} data.",
-                        Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
-                    );
+        let stored_value_buf = &mut state.stored_value;
+        let new_value_buf = &mut state.new_value;
+        match req {
+            StorageRequest::Read => {
+                info!(
+                    "[STORAGE] Reading {} data.",
+                    Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
+                );
 
-                    let result = {
-                        let mut buf = [0; T::POSTCARD_MAX_SIZE];
-                        database
-                            .get_key(get_hashed_key(&[K, StorageKeyType::Data as u8]), &mut buf)
+                let result = {
+                    let (result, buf, _len) =
+                        get_key(database, &[K, StorageKeyType::Data as u8], stored_value_buf).await;
+
+                    result
+                        .map_err(|error| {
+                            error!(
+                                "[STORAGE] Read error for {}: {}",
+                                Debug2Format(
+                                    &<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()
+                                ),
+                                Debug2Format(&error)
+                            );
+                        })
+                        .and_then(|_code| match buf {
+                            Some(buf) => postcard::from_bytes(buf).map_err(|error| {
+                                error!(
+                                    "[STORAGE] Deserialization error while reading {}: {}",
+                                    Debug2Format(
+                                        &<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()
+                                    ),
+                                    Debug2Format(&error)
+                                );
+                            }),
+                            None => unreachable!(),
+                        })
+                };
+
+                response_channel.send(StorageResponse::Read(result)).await;
+            }
+            StorageRequest::Write(data) => {
+                info!(
+                    "[STORAGE] Writing new {} data.",
+                    Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
+                );
+
+                let result = {
+                    match postcard::to_slice(&data, new_value_buf) {
+                        Ok(serialized) => {
+                            let _ =
+                                invalidate_key(database, &[K, StorageKeyType::Data as u8]).await;
+                            garbage_collect(database).await.0.unwrap();
+                            append_key(
+                                database,
+                                &[K, StorageKeyType::Data as u8],
+                                serialized,
+                                serialized.len(),
+                            )
+                            .await
+                            .0
                             .map_err(|error| {
                                 error!(
-                                    "[STORAGE] Read error for {}: {}",
+                                    "[STORAGE] Write error for {}: {}",
                                     Debug2Format(
                                         &<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()
                                     ),
                                     Debug2Format(&error)
                                 );
                             })
-                            .and_then(|_code| {
-                                postcard::from_bytes(&buf).map_err(|error| {
-                                    error!(
-                                        "[STORAGE] Deserialization error while reading {}: {}",
-                                        Debug2Format(
-                                            &<StorageKey as num::FromPrimitive>::from_u8(K)
-                                                .unwrap()
-                                        ),
-                                        Debug2Format(&error)
-                                    );
-                                })
-                            })
-                    };
-
-                    response_channel.send(StorageResponse::Read(result)).await;
-                }
-                StorageRequest::Write(data) => {
-                    info!(
-                        "[STORAGE] Writing new {} data.",
-                        Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
-                    );
-
-                    let result = {
-                        match postcard::to_slice(&data, &mut [0; T::POSTCARD_MAX_SIZE]) {
-                            Ok(serialized) => {
-                                let _ = database.invalidate_key(get_hashed_key(&[
-                                    K,
-                                    StorageKeyType::Data as u8,
-                                ]));
-                                database.garbage_collect().unwrap();
-                                database
-                                    .append_key(
-                                        get_hashed_key(&[K, StorageKeyType::Data as u8]),
-                                        serialized,
-                                    )
-                                    .map_err(|error| {
-                                        error!(
-                                            "[STORAGE] Write error for {}: {}",
-                                            Debug2Format(
-                                                &<StorageKey as num::FromPrimitive>::from_u8(K)
-                                                    .unwrap()
-                                            ),
-                                            Debug2Format(&error)
-                                        );
-                                    })
-                            }
-                            Err(error) => {
-                                error!(
-                                    "[STORAGE] Serialization error while writing {}: {}",
-                                    Debug2Format(
-                                        &<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()
-                                    ),
-                                    Debug2Format(&error)
-                                );
-                                Err(())
-                            }
                         }
-                    };
+                        Err(error) => {
+                            error!(
+                                "[STORAGE] Serialization error while writing {}: {}",
+                                Debug2Format(
+                                    &<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()
+                                ),
+                                Debug2Format(&error)
+                            );
+                            Err(())
+                        }
+                    }
+                };
 
-                    response_channel
-                        .send(StorageResponse::Write(result.map(|_code| {})))
-                        .await;
-                }
-                StorageRequest::Delete => {
-                    info!(
-                        "[STORAGE] Deleting {} data.",
-                        Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
-                    );
+                response_channel
+                    .send(StorageResponse::Write(result.map(|_code| {})))
+                    .await;
+            }
+            StorageRequest::Delete => {
+                info!(
+                    "[STORAGE] Deleting {} data.",
+                    Debug2Format(&<StorageKey as num::FromPrimitive>::from_u8(K).unwrap()),
+                );
 
-                    let result = database
-                        .invalidate_key(get_hashed_key(&[K, StorageKeyType::Data as u8]))
-                        .map_err(|error| {
-                            error!("[STORAGE] Delete error: {}", Debug2Format(&error));
-                        });
-                    database.garbage_collect().unwrap();
-                    response_channel
-                        .send(StorageResponse::Delete(result.map(|_code| {})))
-                        .await;
-                }
-            };
-        }
+                let result = invalidate_key(database, &[K, StorageKeyType::Data as u8])
+                    .await
+                    .0
+                    .map_err(|error| {
+                        error!("[STORAGE] Delete error: {}", Debug2Format(&error));
+                    });
+                garbage_collect(database).await.0.unwrap();
+                response_channel
+                    .send(StorageResponse::Delete(result.map(|_code| {})))
+                    .await;
+            }
+        };
     }
 }
 
@@ -254,13 +289,17 @@ pub struct StorageClient<
     T: 'static + DeserializeOwned + Serialize + MaxSize,
     const K: u8,
     const N: usize,
-> {
+> where
+    [(); T::POSTCARD_MAX_SIZE]:,
+{
     service: &'static StorageService<T, K, N>,
     response_channel: Channel<ThreadModeRawMutex, StorageResponse<T>, N>,
 }
 
 impl<T: 'static + DeserializeOwned + Serialize + MaxSize, const K: u8, const N: usize>
     StorageClient<T, K, N>
+where
+    [(); T::POSTCARD_MAX_SIZE]:,
 {
     pub async fn request(&'static self, req: StorageRequest<T>) -> StorageResponse<T> {
         self.service
@@ -308,6 +347,150 @@ pub trait KeyboardWithEEPROM: Keyboard {
 
 static EMPTY_SIGNAL: Signal<ThreadModeRawMutex, ()> = Signal::new();
 
+async fn perform_pending_flash_op<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+) -> Result<(), ErrorCode> {
+    let operation = database.tickv.controller.pending.get();
+    database.tickv.controller.pending.set(None);
+    match operation {
+        Some(PendingOperation::Read(page)) => {
+            if database
+                .tickv
+                .controller
+                .read(page * F::ERASE_SIZE)
+                .await
+                .is_err()
+            {
+                return Err(ErrorCode::ReadFail);
+            }
+            database.set_read_buffer(database.tickv.controller.op_buf.borrow_mut().as_mut());
+        }
+        Some(PendingOperation::Write(address, len)) => {
+            // Data should already by contained in `op_buf`, so we just need to pass the length of
+            // the data and the address to write to.
+            if database.tickv.controller.write(address, len).await.is_err() {
+                return Err(ErrorCode::WriteFail);
+            }
+        }
+        Some(PendingOperation::Delete(page)) => {
+            if database
+                .tickv
+                .controller
+                .erase(page * F::ERASE_SIZE)
+                .await
+                .is_err()
+            {
+                return Err(ErrorCode::EraseFail);
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn continue_to_completion<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+) -> (
+    Result<SuccessCode, ErrorCode>,
+    Option<&'static mut [u8]>,
+    usize,
+) {
+    let ret = loop {
+        // Perform the last called AsyncTicKV operation to completion
+        if let Err(e) = perform_pending_flash_op(database).await {
+            break (Err(e), None, 0);
+        };
+        let (result, buf, len) = database.continue_operation();
+        match result {
+            // These errors occur when we want to call an async flash operation.
+            // We continue the loop to handle them with `perform_pending_flash_op`
+            Err(ErrorCode::ReadNotReady(_))
+            | Err(ErrorCode::WriteNotReady(_))
+            | Err(ErrorCode::EraseNotReady(_)) => {}
+            _ => {
+                break (result, buf, len);
+            }
+        }
+    };
+
+    // Take care of any leftover pending flash operations (usually a write) when the TicKV operation is complete
+    perform_pending_flash_op(database).await.unwrap();
+
+    ret
+}
+
+async fn initialise<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+) -> Result<SuccessCode, ErrorCode> {
+    let mut ret = database.initialise(get_hashed_key(MAIN_KEY));
+    if ret.is_err() {
+        ret = continue_to_completion(database).await.0;
+    }
+    ret
+}
+
+async fn append_key<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+    key: &[u8],
+    value: &'static mut [u8],
+    length: usize,
+) -> (
+    Result<SuccessCode, ErrorCode>,
+    Option<&'static mut [u8]>,
+    usize,
+) {
+    let ret = database.append_key(get_hashed_key(key), value, length);
+    match ret {
+        Ok(SuccessCode::Queued) => continue_to_completion(database).await,
+        _ => unreachable!(),
+    }
+}
+
+async fn get_key<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+    key: &[u8],
+    buf: &'static mut [u8],
+) -> (
+    Result<SuccessCode, ErrorCode>,
+    Option<&'static mut [u8]>,
+    usize,
+) {
+    let ret = database.get_key(get_hashed_key(key), buf);
+    match ret {
+        Ok(SuccessCode::Queued) => continue_to_completion(database).await,
+        _ => unreachable!(),
+    }
+}
+
+async fn invalidate_key<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+    key: &[u8],
+) -> (
+    Result<SuccessCode, ErrorCode>,
+    Option<&'static mut [u8]>,
+    usize,
+) {
+    let ret = database.invalidate_key(get_hashed_key(key));
+    match ret {
+        Ok(SuccessCode::Queued) => continue_to_completion(database).await,
+        _ => unreachable!(),
+    }
+}
+
+async fn garbage_collect<'a, F: NorFlash>(
+    database: &mut AsyncTicKV<'a, FlashDevice<F>, { F::ERASE_SIZE }>,
+) -> (
+    Result<SuccessCode, ErrorCode>,
+    Option<&'static mut [u8]>,
+    usize,
+) {
+    let ret = database.garbage_collect();
+    match ret {
+        Ok(SuccessCode::Queued) => continue_to_completion(database).await,
+        _ => unreachable!(),
+    }
+}
+
 #[rumcake_macros::task]
 pub async fn storage_task<F: NorFlash>(driver: FlashDevice<F>)
 where
@@ -315,22 +498,32 @@ where
 {
     let mut read_buf = [0; F::ERASE_SIZE];
     let flash_size = driver.end - driver.start;
-    let database = tickv::TicKV::new(driver, &mut read_buf, flash_size);
+    let mut database = tickv::AsyncTicKV::new(driver, &mut read_buf, flash_size);
 
     // Initialize the database, formatting if needed
-    database.initialise(get_hashed_key(MAIN_KEY)).unwrap();
+    initialise(&mut database).await.unwrap();
+
+    // Create state objects for TicKV services
+    #[cfg(feature = "backlight")]
+    static mut BACKLIGHT_STATE: StorageServiceState<crate::backlight::animations::BacklightConfig> =
+        StorageServiceState::new();
+    #[cfg(feature = "underglow")]
+    static mut UNDERGLOW_STATE: StorageServiceState<crate::underglow::animations::UnderglowConfig> =
+        StorageServiceState::new();
 
     // Initialize all services
-    #[cfg(feature = "backlight")]
-    crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
-        .initialize(&database)
-        .await
-        .unwrap();
-    #[cfg(feature = "underglow")]
-    crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
-        .initialize(&database)
-        .await
-        .unwrap();
+    unsafe {
+        #[cfg(feature = "backlight")]
+        crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
+            .initialize(&mut database, &mut BACKLIGHT_STATE)
+            .await
+            .unwrap();
+        #[cfg(feature = "underglow")]
+        crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
+            .initialize(&mut database, &mut UNDERGLOW_STATE)
+            .await
+            .unwrap();
+    }
 
     loop {
         let ((), index) = select::select_array([
@@ -352,15 +545,41 @@ where
         match index {
             0 => {
                 #[cfg(feature = "backlight")]
-                crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
-                    .handle_requests(&database)
-                    .await;
+                unsafe {
+                    while let Ok((req, response_channel)) =
+                        crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
+                            .requests
+                            .try_receive()
+                    {
+                        crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE
+                            .handle_request(
+                                &mut database,
+                                &mut BACKLIGHT_STATE,
+                                req,
+                                response_channel,
+                            )
+                            .await;
+                    }
+                }
             }
             1 => {
                 #[cfg(feature = "underglow")]
-                crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
-                    .handle_requests(&database)
-                    .await;
+                unsafe {
+                    while let Ok((req, response_channel)) =
+                        crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
+                            .requests
+                            .try_receive()
+                    {
+                        crate::underglow::UNDERGLOW_CONFIG_STORAGE_SERVICE
+                            .handle_request(
+                                &mut database,
+                                &mut UNDERGLOW_STATE,
+                                req,
+                                response_channel,
+                            )
+                            .await;
+                    }
+                }
             }
             _ => {}
         };

@@ -8,6 +8,7 @@ defmt = "0.3"
 embedded-hal = "0.2.7"
 embedded-hal-async = "1.0.0-rc.1"
 embedded-storage = "0.3.0"
+embedded-storage-async = "0.4.0"
 embedded-io-async = "0.5.0"
 embedded-graphics = { version = "0.8.1", featuers = ["defmt"] }
 embedded-layout = "0.3.2"
@@ -67,7 +68,7 @@ stm32f303cb = ["stm32", "embassy-stm32/stm32f303cb", "embassy-stm32/time-driver-
 
 # nRF5x
 nrf = ["dep:embassy-nrf", "rumcake-macros/nrf"]
-nrf-ble = ["dep:nrf-softdevice", "nrf-softdevice/defmt", "nrf-softdevice/ble-sec", "nrf-softdevice/critical-section-impl"]
+nrf-ble = ["dep:nrf-softdevice", "nrf-softdevice/defmt", "nrf-softdevice/ble-sec", "nrf-softdevice/critical-section-impl", "nrf-softdevice/nightly"]
 nrf52840 = ["nrf", "embassy-nrf/nrf52840", "nrf-softdevice?/nrf52840", "nrf-softdevice?/s140", "embassy-executor/arch-cortex-m"]
 
 eeprom = []

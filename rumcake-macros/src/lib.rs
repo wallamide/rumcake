@@ -211,6 +211,8 @@ struct KeyboardArgs {
     #[darling(default)]
     display: Option<String>,
     #[darling(default)]
+    storage: Option<String>,
+    #[darling(default)]
     split_peripheral: Option<String>,
     #[darling(default)]
     split_central: Option<String>,
@@ -269,6 +271,23 @@ fn setup_display_driver(kb_name: &Ident, driver: &str) -> Option<TokenStream> {
     }
 }
 
+fn setup_storage_driver(driver: &str, uses_bluetooth: bool) -> Option<TokenStream> {
+    match driver {
+        "internal" => {
+            if cfg!(feature = "nrf") && uses_bluetooth {
+                Some(quote! {
+                    let storage_driver = rumcake::hw::FlashDevice::new(rumcake::hw::mcu::setup_internal_softdevice_flash(sd), unsafe { &rumcake::hw::__config_start as *const u32 as usize }, unsafe { &rumcake::hw::__config_end as *const u32 as usize });
+                })
+            } else {
+                Some(quote! {
+                    let storage_driver = rumcake::hw::FlashDevice::new(rumcake::hw::mcu::setup_internal_flash(), unsafe { &rumcake::hw::__config_start as *const u32 as usize }, unsafe { &rumcake::hw::__config_end as *const u32 as usize });
+                })
+            }
+        }
+        _ => None,
+    }
+}
+
 #[proc_macro_attribute]
 pub fn main(
     args: proc_macro::TokenStream,
@@ -282,6 +301,16 @@ pub fn main(
 
     let mut initialization = TokenStream::new();
     let mut spawning = TokenStream::new();
+
+    let uses_bluetooth = keyboard.bluetooth
+        || keyboard
+            .split_peripheral
+            .as_ref()
+            .is_some_and(|driver| driver == "ble")
+        || keyboard
+            .split_central
+            .as_ref()
+            .is_some_and(|driver| driver == "ble");
 
     // Setup microcontroller
     initialization.extend(quote! {
@@ -306,16 +335,7 @@ pub fn main(
             spawner.spawn(rumcake::adc_task!()).unwrap();
         });
 
-        if keyboard.bluetooth
-            || keyboard
-                .split_peripheral
-                .as_ref()
-                .is_some_and(|driver| driver == "ble")
-            || keyboard
-                .split_central
-                .as_ref()
-                .is_some_and(|driver| driver == "ble")
-        {
+        if uses_bluetooth {
             initialization.extend(quote! {
                 let sd = rumcake::hw::mcu::setup_softdevice::<#kb_name>();
             });
@@ -327,9 +347,15 @@ pub fn main(
 
     // Flash setup
     if !keyboard.no_storage {
-        initialization.extend(quote! {
-            let storage_driver = rumcake::hw::setup_storage_driver(rumcake::hw::mcu::setup_internal_flash(), unsafe { &rumcake::hw::__config_start as *const u32 as usize }, unsafe { &rumcake::hw::__config_end as *const u32 as usize });
-        });
+        // Default to internal flash if a driver is not specified
+        let driver = if let Some(driver) = keyboard.storage {
+            driver
+        } else {
+            "internal".to_string()
+        };
+        let driver_setup = setup_storage_driver(driver.as_str(), uses_bluetooth);
+
+        initialization.extend(driver_setup);
         spawning.extend(quote! {
             spawner.spawn(rumcake::storage_task!(storage_driver)).unwrap();
         });
