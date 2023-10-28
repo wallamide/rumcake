@@ -39,7 +39,7 @@ pub enum StorageResponse<T> {
 /// Keys for data to be stored in the database. The order of existing keys should not change.
 #[derive(Debug, FromPrimitive)]
 #[repr(u8)]
-pub(crate) enum StorageKey {
+pub enum StorageKey {
     BacklightConfig,
     UnderglowConfig,
 }
@@ -65,10 +65,10 @@ pub struct StorageService<
         ),
         N,
     >,
-    pub(crate) signal: Signal<ThreadModeRawMutex, ()>,
+    signal: Signal<ThreadModeRawMutex, ()>,
 }
 
-pub struct StorageServiceState<T: 'static + DeserializeOwned + Serialize + MaxSize>
+struct StorageServiceState<T: 'static + DeserializeOwned + Serialize + MaxSize>
 where
     [(); T::POSTCARD_MAX_SIZE]:,
 {
@@ -93,7 +93,7 @@ impl<T: Clone + Send + DeserializeOwned + Serialize + MaxSize, const K: u8, cons
 where
     [(); T::POSTCARD_MAX_SIZE]:,
 {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         StorageService {
             requests: Channel::new(),
             signal: Signal::new(),
@@ -107,7 +107,7 @@ where
         }
     }
 
-    pub async fn initialize<F: NorFlash>(
+    pub(crate) async fn initialize<F: NorFlash>(
         &'static self,
         database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
         state: &'static mut StorageServiceState<T>,
@@ -165,7 +165,7 @@ where
         Ok(())
     }
 
-    pub async fn handle_request<F: NorFlash>(
+    pub(crate) async fn handle_request<F: NorFlash>(
         &'static self,
         database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
         state: &'static mut StorageServiceState<T>,
