@@ -173,7 +173,8 @@ pub static BACKLIGHT_CONFIG_STATE: State<BacklightConfig> = State::new(
 static BACKLIGHT_CONFIG_STATE_LISTENER: Signal<ThreadModeRawMutex, ()> = Signal::new();
 
 #[cfg(feature = "eeprom")]
-/// Channel for sending requests to save/read backlight configuration to a storage peripheral
+/// Service that receives requests to read, write or delete [`BacklightConfig`] data from a storage
+/// peripheral.
 pub static BACKLIGHT_CONFIG_STORAGE_SERVICE: crate::eeprom::StorageService<
     BacklightConfig,
     { crate::eeprom::StorageKey::BacklightConfig as u8 },

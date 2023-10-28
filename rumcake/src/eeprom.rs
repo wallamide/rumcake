@@ -24,15 +24,35 @@ fn get_hashed_key(key: &[u8]) -> u64 {
     hasher.finish()
 }
 
+/// Different types of requests that can be sent by a [`StorageClient`] to be processed by a
+/// [`StorageService`].
 pub enum StorageRequest<T> {
+    /// Read request. When received by a [`StorageService`], this will fetch the currently stored
+    /// value of `T` in the storage peripheral.
     Read,
+    /// Write requests. This variant accepts an instance of data type `T` to write to the storage
+    /// peripheral. When received by a [`StorageService`], this will insert the provided instance
+    /// of `T` into the storage peripheral. If an instance of `T` exists in the storage peripheral,
+    /// it will be replaced.
     Write(T),
+    /// Delete request. When received by a [`StorageService`], this will delete the currently
+    /// stored value of `T` in the storage peripheral.
     Delete,
 }
 
+/// Responses from a [`StorageService`] in response to a [`StorageRequest`] sent by a
+/// [`StorageClient`].
 pub enum StorageResponse<T> {
+    /// Response to a [`StorageRequest::Read`] request. If a value of `T` exists in the storage
+    /// peripheral, the service will return `Ok(T)`. Otherwise, it will return `Err(())`.
     Read(Result<T, ()>),
+    /// Response to a [`StorageRequest::Write`] request. If the provided value of `T` was
+    /// successfully written to the storage peripheral, the service will return `Ok(())`. Otherwise,
+    /// it will return `Err(())`.
     Write(Result<(), ()>),
+    /// Response to a [`StorageRequest::Read`] request. If a value of `T` exists in the storage
+    /// peripheral, the service will attempt to delete it, and return `Ok(T)` if it is successful.
+    /// Otherwise, it will return `Err(())`.
     Delete(Result<(), ()>),
 }
 
@@ -50,6 +70,11 @@ enum StorageKeyType {
     Metadata,
 }
 
+/// A data structure used by the storage task to receive requests to read, write or delete `T` from
+/// a storage peripheral.
+///
+/// Const parameter `K` is used to determine what key to use when storing or reading `T` from the
+/// storage peripheral. This should be one of the available [`StorageKey`]s.
 pub struct StorageService<
     T: 'static + DeserializeOwned + Serialize + MaxSize,
     const K: u8,
@@ -100,6 +125,7 @@ where
         }
     }
 
+    /// Create a [`StorageClient`] that can send requests to this [`StorageService`].
     pub const fn client(&'static self) -> StorageClient<T, K, N> {
         StorageClient {
             service: self,
@@ -281,6 +307,11 @@ where
     }
 }
 
+/// A data structure that allows you to send requests to the storage task to read, write or delete
+/// data from a storage peripheral.
+///
+/// To create a storage client, you should call [`.client()`](StorageService::client) on an existing
+/// storage service, such as [`crate::backlight::BACKLIGHT_CONFIG_STORAGE_SERVICE`].
 pub struct StorageClient<
     T: 'static + DeserializeOwned + Serialize + MaxSize,
     const K: u8,
@@ -297,6 +328,11 @@ impl<T: 'static + DeserializeOwned + Serialize + MaxSize, const K: u8, const N: 
 where
     [(); T::POSTCARD_MAX_SIZE]:,
 {
+    /// Send a [`StorageRequest`] to the storage task. This is guaranteed to return the
+    /// corresponding [`StorageResponse`] from the storage task **unless you send multiple requests
+    /// at the same time**. For example, if you send [`StorageRequest::Read`], you should receive
+    /// [`StorageResponse::Read`] back. If you send multiple requests at the same time (for
+    /// example, if you use [`embassy_futures::join`]), you may receive a different response.
     pub async fn request(&'static self, req: StorageRequest<T>) -> StorageResponse<T> {
         self.service
             .requests

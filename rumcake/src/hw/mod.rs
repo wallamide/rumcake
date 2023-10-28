@@ -25,33 +25,52 @@ use embedded_storage_async::nor_flash::NorFlash;
 use tickv::FlashController;
 
 extern "C" {
-    // Comes from memory.x
+    /// This static value will have an address equal to the `__config_start` address in your
+    /// `memory.x` file. If you want to know what value to set this to in `memory.x`, see
+    /// [`FlashDevice::new`].
     pub static __config_start: u32;
+    /// This static value will have an address equal to the `__config_end` address in your
+    /// `memory.x` file. If you want to know what value to set this to in `memory.x`, see
+    /// [`FlashDevice::new`].
     pub static __config_end: u32;
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum PendingOperation {
+pub(crate) enum PendingOperation {
     Read(usize),
     Write(usize, usize),
     Delete(usize),
 }
 
+/// Data structure that wraps around an implementor of
+/// [`embedded_storage_async::nor_flash::NorFlash`]. This struct is only `pub` in order to set up
+/// the storage task, which uses [`tickv`]. If you want to read, write or delete existing data
+/// (like [`crate::backlight::animations::BacklightConfig`]), see [`crate::eeprom::StorageClient`].
+/// Reading, writing or deleting *custom* data using the same storage peripheral used for the
+/// storage task is not yet supported.
 pub struct FlashDevice<F: NorFlash>
 where
     [(); F::ERASE_SIZE]:,
 {
-    pub flash: F,
-    pub start: usize,
-    pub end: usize,
-    pub pending: Cell<Option<PendingOperation>>,
-    pub op_buf: RefCell<[u8; F::ERASE_SIZE]>,
+    pub(crate) flash: F,
+    pub(crate) start: usize,
+    pub(crate) end: usize,
+    pub(crate) pending: Cell<Option<PendingOperation>>,
+    pub(crate) op_buf: RefCell<[u8; F::ERASE_SIZE]>,
 }
 
 impl<F: NorFlash> FlashDevice<F>
 where
     [(); F::ERASE_SIZE]:,
 {
+    /// Create an instance of [`FlashDevice`], using a provided implementor of
+    /// [`embedded_storage_async::nor_flash::NorFlash`].
+    ///
+    /// You must also provide the start and end address of the flash device. If you're using on-chip
+    /// flash, keep in mind that the start and end address must be relative to the address of your
+    /// chip's flash. For example, on STM32F072CBx, flash memory is located at `0x08000000`, so if
+    /// you want your config data to start at `0x08100000`, your start address must be
+    /// `0x00100000`.
     pub fn new(driver: F, config_start: usize, config_end: usize) -> Self {
         // Check config partition before moving on
         assert!(
@@ -76,7 +95,7 @@ where
         }
     }
 
-    pub async fn read(&mut self, address: usize) -> Result<(), F::Error> {
+    pub(crate) async fn read(&mut self, address: usize) -> Result<(), F::Error> {
         debug!(
             "[STORAGE_DRIVER] Reading {} bytes from config page {}, offset {} (address = {:x})",
             F::ERASE_SIZE,
@@ -103,7 +122,7 @@ where
         Ok(())
     }
 
-    pub async fn write(&mut self, address: usize, len: usize) -> Result<(), F::Error>
+    pub(crate) async fn write(&mut self, address: usize, len: usize) -> Result<(), F::Error>
     where
         [(); F::ERASE_SIZE]:,
     {
@@ -194,7 +213,7 @@ where
         Ok(())
     }
 
-    pub async fn erase(&mut self, address: usize) -> Result<(), F::Error> {
+    pub(crate) async fn erase(&mut self, address: usize) -> Result<(), F::Error> {
         let start = self.start + address;
         let end = self.start + address + F::ERASE_SIZE;
 
