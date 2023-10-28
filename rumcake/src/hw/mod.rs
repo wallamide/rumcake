@@ -48,7 +48,7 @@ pub(crate) enum PendingOperation {
 /// (like [`crate::backlight::animations::BacklightConfig`]), see [`crate::eeprom::StorageClient`].
 /// Reading, writing or deleting *custom* data using the same storage peripheral used for the
 /// storage task is not yet supported.
-pub struct FlashDevice<F: NorFlash>
+pub(crate) struct FlashDevice<F: NorFlash>
 where
     [(); F::ERASE_SIZE]:,
 {
@@ -71,7 +71,7 @@ where
     /// chip's flash. For example, on STM32F072CBx, flash memory is located at `0x08000000`, so if
     /// you want your config data to start at `0x08100000`, your start address must be
     /// `0x00100000`.
-    pub fn new(driver: F, config_start: usize, config_end: usize) -> Self {
+    pub(crate) fn new(driver: F, config_start: usize, config_end: usize) -> Self {
         // Check config partition before moving on
         assert!(
             config_start < config_end,
