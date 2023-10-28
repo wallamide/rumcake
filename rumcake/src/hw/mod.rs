@@ -26,12 +26,15 @@ use tickv::FlashController;
 
 extern "C" {
     /// This static value will have an address equal to the `__config_start` address in your
-    /// `memory.x` file. If you want to know what value to set this to in `memory.x`, see
-    /// [`FlashDevice::new`].
+    /// `memory.x` file. You must set this, along with [`__config_end`], if you're using on-chip
+    /// flash with the storage task (which is the default). Keep in mind that the start and end
+    /// address must be relative to the address of your chip's flash. For example, on STM32F072CBx,
+    /// flash memory is located at `0x08000000`, so if you want your config data to start at
+    /// `0x08100000`, your start address must be `0x00100000`.
     pub static __config_start: u32;
     /// This static value will have an address equal to the `__config_end` address in your
-    /// `memory.x` file. If you want to know what value to set this to in `memory.x`, see
-    /// [`FlashDevice::new`].
+    /// `memory.x` file. If you want to know what value to set this to in `memory.x`, take
+    /// [`__config_start`], and add the size of your config section, in bytes.
     pub static __config_end: u32;
 }
 
@@ -65,12 +68,6 @@ where
 {
     /// Create an instance of [`FlashDevice`], using a provided implementor of
     /// [`embedded_storage_async::nor_flash::NorFlash`].
-    ///
-    /// You must also provide the start and end address of the flash device. If you're using on-chip
-    /// flash, keep in mind that the start and end address must be relative to the address of your
-    /// chip's flash. For example, on STM32F072CBx, flash memory is located at `0x08000000`, so if
-    /// you want your config data to start at `0x08100000`, your start address must be
-    /// `0x00100000`.
     pub(crate) fn new(driver: F, config_start: usize, config_end: usize) -> Self {
         // Check config partition before moving on
         assert!(
