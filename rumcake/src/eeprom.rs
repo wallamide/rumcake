@@ -107,7 +107,7 @@ where
         }
     }
 
-    pub(crate) async fn initialize<F: NorFlash>(
+    async fn initialize<F: NorFlash>(
         &'static self,
         database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
         state: &'static mut StorageServiceState<T>,
@@ -165,7 +165,7 @@ where
         Ok(())
     }
 
-    pub(crate) async fn handle_request<F: NorFlash>(
+    async fn handle_request<F: NorFlash>(
         &'static self,
         database: &mut AsyncTicKV<'_, FlashDevice<F>, { F::ERASE_SIZE }>,
         state: &'static mut StorageServiceState<T>,
