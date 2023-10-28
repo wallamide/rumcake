@@ -276,11 +276,15 @@ fn setup_storage_driver(driver: &str, uses_bluetooth: bool) -> Option<TokenStrea
         "internal" => {
             if cfg!(feature = "nrf") && uses_bluetooth {
                 Some(quote! {
-                    let storage_driver = rumcake::hw::FlashDevice::new(rumcake::hw::mcu::setup_internal_softdevice_flash(sd), unsafe { &rumcake::hw::__config_start as *const u32 as usize }, unsafe { &rumcake::hw::__config_end as *const u32 as usize });
+                    let storage_driver = rumcake::hw::mcu::setup_internal_softdevice_flash(sd);
+                    let config_start = unsafe { &rumcake::hw::__config_start as *const u32 as usize };
+                    let config_end = unsafe { &rumcake::hw::__config_end as *const u32 as usize };
                 })
             } else {
                 Some(quote! {
-                    let storage_driver = rumcake::hw::FlashDevice::new(rumcake::hw::mcu::setup_internal_flash(), unsafe { &rumcake::hw::__config_start as *const u32 as usize }, unsafe { &rumcake::hw::__config_end as *const u32 as usize });
+                    let storage_driver = rumcake::hw::mcu::setup_internal_flash();
+                    let config_start = unsafe { &rumcake::hw::__config_start as *const u32 as usize };
+                    let config_end = unsafe { &rumcake::hw::__config_end as *const u32 as usize };
                 })
             }
         }
@@ -357,7 +361,7 @@ pub fn main(
 
         initialization.extend(driver_setup);
         spawning.extend(quote! {
-            spawner.spawn(rumcake::storage_task!(storage_driver)).unwrap();
+            spawner.spawn(rumcake::storage_task!(storage_driver, config_start, config_end)).unwrap();
         });
     }
 

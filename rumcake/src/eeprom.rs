@@ -524,11 +524,12 @@ async fn garbage_collect<'a, F: NorFlash>(
 }
 
 #[rumcake_macros::task]
-pub async fn storage_task<F: NorFlash>(driver: FlashDevice<F>)
+pub async fn storage_task<F: NorFlash>(flash: F, config_start: usize, config_end: usize)
 where
     [(); F::ERASE_SIZE]:,
 {
     let mut read_buf = [0; F::ERASE_SIZE];
+    let driver = FlashDevice::new(flash, config_start, config_end);
     let flash_size = driver.end - driver.start;
     let mut database = tickv::AsyncTicKV::new(driver, &mut read_buf, flash_size);
 
