@@ -40,13 +40,15 @@ Continue with the following instructions **if you want to use the existing flash
 
 To set up storage, you must add a `CONFIG` section to your `memory.x` file, and specify the
 start and end address of the `CONFIG` section, using `__config_start`, and `__config_end`.
+This will involve taking some space from the `FLASH` section, so make sure you still have
+enough space to flash your compiled firmware binary file.
 
 The following example shows what `memory.x` may look like for an `STM32F303CBx` chip:
 
 ```
 MEMORY
 {
-    FLASH : ORIGIN = 0x08000000, LENGTH =  120K
+    FLASH : ORIGIN = 0x08000000, LENGTH =  120K /* decreased from the chip's max of 128K */
     CONFIG: ORIGIN = ORIGIN(FLASH) + LENGTH(FLASH), LENGTH = 8K /* add this */
     RAM   : ORIGIN = 0x20000000, LENGTH =   32K
 }
