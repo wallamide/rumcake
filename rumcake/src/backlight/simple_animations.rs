@@ -116,7 +116,7 @@ impl<K: BacklightDevice, D: SimpleBacklightDriver<K>> BacklightAnimator<K, D> {
         };
     }
 
-    pub fn process_command(&mut self, command: BacklightCommand) {
+    pub async fn process_command(&mut self, command: BacklightCommand) {
         match command {
             BacklightCommand::Toggle => {
                 self.config.enabled = !self.config.enabled;
@@ -149,7 +149,11 @@ impl<K: BacklightDevice, D: SimpleBacklightDriver<K>> BacklightAnimator<K, D> {
             }
             #[cfg(feature = "storage")]
             BacklightCommand::SaveConfig => {
-                // TODO: save changes to EEPROM
+                super::BACKLIGHT_CONFIG_STORAGE_CLIENT
+                    .request(crate::storage::StorageRequest::Write(
+                        super::BACKLIGHT_CONFIG_STATE.get().await,
+                    ))
+                    .await;
             }
             BacklightCommand::SetTime(time) => {
                 self.tick = time;

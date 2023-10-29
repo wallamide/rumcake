@@ -1,7 +1,7 @@
 use core::f32::consts::PI;
 
 use super::drivers::UnderglowDriver;
-use super::{UnderglowDevice, UNDERGLOW_CONFIG_STATE};
+use super::UnderglowDevice;
 use crate::math::sin;
 use crate::{Cycle, LEDEffect};
 use postcard::experimental::max_size::MaxSize;
@@ -163,7 +163,7 @@ where
         };
     }
 
-    pub fn process_command(&mut self, command: UnderglowCommand) {
+    pub async fn process_command(&mut self, command: UnderglowCommand) {
         match command {
             UnderglowCommand::Toggle => {
                 self.config.enabled = !self.config.enabled;
@@ -210,7 +210,11 @@ where
             }
             #[cfg(feature = "storage")]
             UnderglowCommand::SaveConfig => {
-                // TODO: save changes to EEPROM
+                super::UNDERGLOW_CONFIG_STORAGE_CLIENT
+                    .request(crate::storage::StorageRequest::Write(
+                        super::UNDERGLOW_CONFIG_STATE.get().await,
+                    ))
+                    .await;
             }
             UnderglowCommand::SetTime(time) => {
                 self.tick = time;

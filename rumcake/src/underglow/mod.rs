@@ -130,19 +130,18 @@ pub async fn underglow_task<D: UnderglowDevice>(
 
             // Process the command if one was received, otherwise continue to render
             if let Some(command) = command {
-                // Update the config state, including the animator's own copy, check if it was enabled/disabled
+                animator.process_command(command).await;
+
+                // Process commands until there are no more to process
+                while let Ok(command) = UNDERGLOW_COMMAND_CHANNEL.try_receive() {
+                    animator.process_command(command).await;
+                }
+
+                // Update the config state, after updating the animator's own copy, and check if it was enabled/disabled
                 let toggled = UNDERGLOW_CONFIG_STATE
                     .update(|config| {
-                        animator.process_command(command);
-
-                        // Process commands until there are no more to process
-                        while let Ok(command) = UNDERGLOW_COMMAND_CHANNEL.try_receive() {
-                            animator.process_command(command);
-                        }
-
                         let toggled = config.enabled != animator.config.enabled;
                         **config = animator.config;
-
                         toggled
                     })
                     .await;
