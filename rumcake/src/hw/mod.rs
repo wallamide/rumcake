@@ -48,9 +48,9 @@ pub(crate) enum PendingOperation {
 /// Data structure that wraps around an implementor of
 /// [`embedded_storage_async::nor_flash::NorFlash`]. This struct is only `pub` in order to set up
 /// the storage task, which uses [`tickv`]. If you want to read, write or delete existing data
-/// (like [`crate::backlight::animations::BacklightConfig`]), see [`crate::eeprom::StorageClient`].
-/// Reading, writing or deleting *custom* data using the same storage peripheral used for the
-/// storage task is not yet supported.
+/// (like [`crate::backlight::animations::BacklightConfig`]), see
+/// [`crate::storage::StorageClient`]. Reading, writing or deleting *custom* data using the same
+/// storage peripheral used for the storage task is not yet supported.
 pub(crate) struct FlashDevice<F: NorFlash>
 where
     [(); F::ERASE_SIZE]:,

@@ -407,7 +407,7 @@ pub fn main(
         });
     }
 
-    // #[cfg(feature = "eeprom")]
+    // #[cfg(feature = "storage")]
     // initialization.extend(quote! {
     //     // Flash setup
     //     let raw_hid_flash = rumcake::hw::mcu::setup_flash();

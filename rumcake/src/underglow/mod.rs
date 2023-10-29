@@ -59,18 +59,18 @@ pub static UNDERGLOW_CONFIG_STATE: State<UnderglowConfig> = State::new(
 
 static UNDERGLOW_CONFIG_STATE_LISTENER: Signal<ThreadModeRawMutex, ()> = Signal::new();
 
-#[cfg(feature = "eeprom")]
+#[cfg(feature = "storage")]
 /// Channel for sending requests to save/read underglow configuration to a storage peripheral
-pub static UNDERGLOW_CONFIG_STORAGE_SERVICE: crate::eeprom::StorageService<
+pub static UNDERGLOW_CONFIG_STORAGE_SERVICE: crate::storage::StorageService<
     UnderglowConfig,
-    { crate::eeprom::StorageKey::UnderglowConfig as u8 },
+    { crate::storage::StorageKey::UnderglowConfig as u8 },
     4,
-> = crate::eeprom::StorageService::new();
+> = crate::storage::StorageService::new();
 
-#[cfg(feature = "eeprom")]
-static UNDERGLOW_CONFIG_STORAGE_CLIENT: crate::eeprom::StorageClient<
+#[cfg(feature = "storage")]
+static UNDERGLOW_CONFIG_STORAGE_CLIENT: crate::storage::StorageClient<
     UnderglowConfig,
-    { crate::eeprom::StorageKey::UnderglowConfig as u8 },
+    { crate::storage::StorageKey::UnderglowConfig as u8 },
     4,
 > = UNDERGLOW_CONFIG_STORAGE_SERVICE.client();
 
@@ -85,9 +85,9 @@ pub async fn underglow_task<D: UnderglowDevice>(
     let mut ticker = Ticker::every(Duration::from_millis(1000 / D::FPS as u64));
 
     // Get underglow config from storage
-    #[cfg(feature = "eeprom")]
-    if let crate::eeprom::StorageResponse::Read(Ok(config)) = UNDERGLOW_CONFIG_STORAGE_CLIENT
-        .request(crate::eeprom::StorageRequest::Read)
+    #[cfg(feature = "storage")]
+    if let crate::storage::StorageResponse::Read(Ok(config)) = UNDERGLOW_CONFIG_STORAGE_CLIENT
+        .request(crate::storage::StorageRequest::Read)
         .await
     {
         info!(
@@ -192,9 +192,9 @@ pub async fn underglow_task<D: UnderglowDevice>(
             .await
             {
                 Either::First(_) => {
-                    #[cfg(feature = "eeprom")]
+                    #[cfg(feature = "storage")]
                     UNDERGLOW_CONFIG_STORAGE_CLIENT
-                        .request(crate::eeprom::StorageRequest::Write(
+                        .request(crate::storage::StorageRequest::Write(
                             UNDERGLOW_CONFIG_STATE.get().await,
                         ))
                         .await;

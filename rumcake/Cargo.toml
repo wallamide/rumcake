@@ -71,14 +71,14 @@ nrf = ["dep:embassy-nrf", "rumcake-macros/nrf"]
 nrf-ble = ["dep:nrf-softdevice", "nrf-softdevice/defmt", "nrf-softdevice/ble-sec", "nrf-softdevice/critical-section-impl", "nrf-softdevice/nightly"]
 nrf52840 = ["nrf", "embassy-nrf/nrf52840", "nrf-softdevice?/nrf52840", "nrf-softdevice?/s140", "embassy-executor/arch-cortex-m"]
 
-eeprom = []
+storage = []
 
 #
 # Keyboard features
 #
 
 # Via/Vial
-via = ["usb", "eeprom", "rumcake-macros/via"]
+via = ["usb", "storage", "rumcake-macros/via"]
 vial = ["via", "rumcake-macros/vial"]
 
 # Host communication

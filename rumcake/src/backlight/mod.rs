@@ -172,19 +172,19 @@ pub static BACKLIGHT_CONFIG_STATE: State<BacklightConfig> = State::new(
 
 static BACKLIGHT_CONFIG_STATE_LISTENER: Signal<ThreadModeRawMutex, ()> = Signal::new();
 
-#[cfg(feature = "eeprom")]
+#[cfg(feature = "storage")]
 /// Service that receives requests to read, write or delete [`BacklightConfig`] data from a storage
 /// peripheral.
-pub static BACKLIGHT_CONFIG_STORAGE_SERVICE: crate::eeprom::StorageService<
+pub static BACKLIGHT_CONFIG_STORAGE_SERVICE: crate::storage::StorageService<
     BacklightConfig,
-    { crate::eeprom::StorageKey::BacklightConfig as u8 },
+    { crate::storage::StorageKey::BacklightConfig as u8 },
     4,
-> = crate::eeprom::StorageService::new();
+> = crate::storage::StorageService::new();
 
-#[cfg(feature = "eeprom")]
-static BACKLIGHT_CONFIG_STORAGE_CLIENT: crate::eeprom::StorageClient<
+#[cfg(feature = "storage")]
+static BACKLIGHT_CONFIG_STORAGE_CLIENT: crate::storage::StorageClient<
     BacklightConfig,
-    { crate::eeprom::StorageKey::BacklightConfig as u8 },
+    { crate::storage::StorageKey::BacklightConfig as u8 },
     4,
 > = BACKLIGHT_CONFIG_STORAGE_SERVICE.client();
 
@@ -201,9 +201,9 @@ where
     let mut ticker = Ticker::every(Duration::from_millis(1000 / D::FPS as u64));
 
     // Get backlight config from storage
-    #[cfg(feature = "eeprom")]
-    if let crate::eeprom::StorageResponse::Read(Ok(config)) = BACKLIGHT_CONFIG_STORAGE_CLIENT
-        .request(crate::eeprom::StorageRequest::Read)
+    #[cfg(feature = "storage")]
+    if let crate::storage::StorageResponse::Read(Ok(config)) = BACKLIGHT_CONFIG_STORAGE_CLIENT
+        .request(crate::storage::StorageRequest::Read)
         .await
     {
         info!(
@@ -308,9 +308,9 @@ where
             .await
             {
                 Either::First(_) => {
-                    #[cfg(feature = "eeprom")]
+                    #[cfg(feature = "storage")]
                     BACKLIGHT_CONFIG_STORAGE_CLIENT
-                        .request(crate::eeprom::StorageRequest::Write(
+                        .request(crate::storage::StorageRequest::Write(
                             BACKLIGHT_CONFIG_STATE.get().await,
                         ))
                         .await;

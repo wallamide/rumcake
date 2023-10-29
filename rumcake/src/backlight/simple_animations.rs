@@ -51,7 +51,7 @@ pub enum BacklightCommand {
     SetSpeed(u8),
     AdjustSpeed(i16),
     SetConfig(BacklightConfig),
-    #[cfg(feature = "eeprom")]
+    #[cfg(feature = "storage")]
     SaveConfig,
     SetTime(u32), // normally used internally for syncing LEDs for split keyboards
 }
@@ -147,7 +147,7 @@ impl<K: BacklightDevice, D: SimpleBacklightDriver<K>> BacklightAnimator<K, D> {
             BacklightCommand::SetConfig(config) => {
                 self.config = config;
             }
-            #[cfg(feature = "eeprom")]
+            #[cfg(feature = "storage")]
             BacklightCommand::SaveConfig => {
                 // TODO: save changes to EEPROM
             }

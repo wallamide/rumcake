@@ -129,8 +129,8 @@ pub use rumcake_macros::main as keyboard;
 pub mod keyboard;
 mod math;
 
-#[cfg(feature = "eeprom")]
-pub mod eeprom;
+#[cfg(feature = "storage")]
+pub mod storage;
 
 #[cfg(feature = "underglow")]
 pub mod underglow;
@@ -190,8 +190,8 @@ pub mod tasks {
     #[cfg(feature = "split-peripheral")]
     pub use crate::split::peripheral::__peripheral_task_task;
 
-    #[cfg(feature = "eeprom")]
-    pub use crate::eeprom::__storage_task_task;
+    #[cfg(feature = "storage")]
+    pub use crate::storage::__storage_task_task;
 
     #[cfg(feature = "nrf")]
     pub use crate::hw::mcu::__adc_task_task;

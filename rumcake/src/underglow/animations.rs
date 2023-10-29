@@ -60,7 +60,7 @@ pub enum UnderglowCommand {
     SetSpeed(u8),
     AdjustSpeed(i16),
     SetConfig(UnderglowConfig),
-    #[cfg(feature = "eeprom")]
+    #[cfg(feature = "storage")]
     SaveConfig,
     SetTime(u32), // normally used internally for syncing LEDs for split keyboards
 }
@@ -208,7 +208,7 @@ where
             UnderglowCommand::SetConfig(config) => {
                 self.config = config;
             }
-            #[cfg(feature = "eeprom")]
+            #[cfg(feature = "storage")]
             UnderglowCommand::SaveConfig => {
                 // TODO: save changes to EEPROM
             }
