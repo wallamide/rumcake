@@ -1,3 +1,13 @@
+//! Storage related features.
+//!
+//! This allows other `rumcake` features to store configuration data to a storage peripheral, like
+//! your MCU's flash. As a result, a user will be able to configure things like backlight/underglow
+//! effect settings, or dynamic keymaps without losing their changes between keyboard restarts.
+//!
+//! To use this feature, you will need to add a `CONFIG` section, and its start and end address to
+//! your `memory.x` file. Refer to [`crate::hw::__config_start`], and the corresponding
+//! `feature-storage.md` doc for more information.
+
 use core::any::TypeId;
 use core::hash::{Hash, Hasher, SipHasher};
 use core::mem::size_of;
