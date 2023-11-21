@@ -253,7 +253,7 @@ impl BacklightEffect {
             BacklightEffect::HuePendulum => D::HUE_PENDULUM_ENABLED,
             BacklightEffect::HueWave => D::HUE_WAVE_ENABLED,
             BacklightEffect::PixelRain => D::PIXEL_RAIN_ENABLED,
-            BacklightEffect::PixelFlow => D::PIXEL_FLOW_ENABLED, // This shouldn't be reached, but who cares
+            BacklightEffect::PixelFlow => D::PIXEL_FLOW_ENABLED,
             BacklightEffect::PixelFractal => D::PIXEL_FRACTAL_ENABLED,
             BacklightEffect::TypingHeatmap => D::TYPING_HEATMAP_ENABLED,
             BacklightEffect::DigitalRain => D::DIGITAL_RAIN_ENABLED,
