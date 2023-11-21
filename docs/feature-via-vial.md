@@ -7,13 +7,13 @@
 
 <!--toc:start-->
 
-- [Via/Vial](#viavial)
-  - [Setup](#setup)
-    - [Required Cargo features](#required-cargo-features)
-    - [Required code](#required-code)
-    - [Vial Definitions](#vial-definitions)
-  - [To-do List](#to-do-list)
-  <!--toc:end-->
+- [Setup](#setup)
+  - [Required Cargo features](#required-cargo-features)
+  - [Required code](#required-code)
+  - [Vial Definitions](#vial-definitions)
+- [Keycode support](#keycode-support)
+- [To-do List](#to-do-list)
+<!--toc:end-->
 
 ## Setup
 
