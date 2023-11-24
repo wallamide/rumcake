@@ -1,11 +1,12 @@
 ---
-title: Matrix and Layout
+title: Device Info, Matrix and Layout
 description: How to configure your keyboard matrix and layout.
 sidebar:
   order: 3
 ---
 
-This document contains some information on how to set up a basic matrix and layout setup for your keyboard.
+This document contains some information on how to define some basic information for your keyboard,
+and how to set up a basic matrix and layout setup for your keyboard.
 
 :::note
 The following examples are for a non-split keyboard, which places the `KeyboardMatrix` and `KeyboardLayout`
@@ -16,17 +17,44 @@ on your split keyboard setup.
 See the [split keyboard document](/features/feature-split) for more information.
 :::
 
-# Keyboard matrix
+# Keyboard Information
+
+The basic trait that every device must implement to use `rumcake` is the `Keyboard` trait.
+Here, you can define some basic information, including the name of the keyboard, the manufacturer,
+version numbers, etc.
+
+```rust ins={6-11}
+use rumcake::keyboard;
+
+#[keyboard(usb)]
+pub struct MyKeyboard;
+
+use rumcake::keyboard::Keyboard;
+impl Keyboard for MyKeyboard {
+    const MANUFACTURER: &'static str = "Me";
+    const PRODUCT: &'static str = "MyKeyboard";
+    const SERIAL_NUMBER: &'static str = "1";
+}
+```
+
+# Keyboard Matrix
 
 In the [templates](https://github.com/Univa/rumcake-templates), you will see that
 to implement a keyboard matrix, you need to implement the `KeyboardMatrix` trait
 using the `build_matrix!` macro:
 
-```rust ins={6-13}
+```rust ins={13-20}
 use rumcake::keyboard;
 
 #[keyboard(usb)]
 pub struct MyKeyboard;
+
+use rumcake::keyboard::Keyboard;
+impl Keyboard for MyKeyboard {
+    const MANUFACTURER: &'static str = "Me";
+    const PRODUCT: &'static str = "MyKeyboard";
+    const SERIAL_NUMBER: &'static str = "1";
+}
 
 use rumcake::keyboard::KeyboardMatrix;
 use rumcake::build_matrix;
@@ -60,11 +88,18 @@ Please follow `keyberon`'s macro instructions there to set up your keyboard layo
 
 The following example shows a 3-layer keyboard layout, meant to be used with the matrix we defined previously:
 
-```rust ins={15-37}
+```rust ins={22-44}
 use rumcake::keyboard;
 
 #[keyboard(usb)]
 pub struct MyKeyboard;
+
+use rumcake::keyboard::Keyboard;
+impl Keyboard for MyKeyboard {
+    const MANUFACTURER: &'static str = "Me";
+    const PRODUCT: &'static str = "MyKeyboard";
+    const SERIAL_NUMBER: &'static str = "1";
+}
 
 use rumcake::keyboard::KeyboardMatrix;
 impl KeyboardMatrix for MyKeyboard {
@@ -121,7 +156,7 @@ the code that require you to configure something that looks like your matrix.
 
 This can be useful for your keyboard layout config, or your backlight matrix config:
 
-```rust del={43-56} ins={1-26,57-68}
+```rust del={50-63} ins={1-26,64-75}
 // This creates a `remap!` macro that you can use in other parts of your config.
 remap_matrix! {
     // This has the same number of rows and columns that you specified in `build_matrix!`
@@ -153,6 +188,13 @@ use rumcake::keyboard;
 
 #[keyboard(usb)]
 pub struct MyKeyboard;
+
+use rumcake::keyboard::Keyboard;
+impl Keyboard for MyKeyboard {
+    const MANUFACTURER: &'static str = "Me";
+    const PRODUCT: &'static str = "MyKeyboard";
+    const SERIAL_NUMBER: &'static str = "1";
+}
 
 use rumcake::keyboard::KeyboardMatrix;
 impl KeyboardMatrix for MyKeyboard {

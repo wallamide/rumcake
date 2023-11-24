@@ -54,7 +54,7 @@ and flashing instructions for some common setups.
 
 ## Working
 
-The following features are _working_, but may not be stable or has missing components.
+The following features are _working_, but may not be stable or have missing components.
 
 - USB host communication
 - Bluetooth host communication (only for nRF-based keyboards)
