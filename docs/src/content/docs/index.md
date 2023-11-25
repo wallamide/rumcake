@@ -6,7 +6,7 @@ hero:
   tagline: A rust-based keyboard firmware.
   actions:
     - text: Get started
-      link: /getting-started/setup-template/
+      link: getting-started/setup-template/
       icon: right-arrow
       variant: primary
     - text: Read the API docs

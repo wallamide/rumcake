@@ -3,6 +3,11 @@ import starlight from "@astrojs/starlight";
 
 // https://astro.build/config
 export default defineConfig({
+  base: "/rumcake",
+  trailingSlash: "always",
+  build: {
+    format: "directory",
+  },
   integrations: [
     starlight({
       title: "rumcake",

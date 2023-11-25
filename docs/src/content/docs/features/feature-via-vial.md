@@ -83,7 +83,7 @@ impl ViaKeyboard for MyKeyboard {
 ```
 
 You will need to do additional setup for your selected storage driver as well.
-For more information, see the docs for the [storage feature](/features/feature-storage).
+For more information, see the docs for the [storage feature](../feature-storage).
 :::
 
 If you are using Vial, you must also implement `VialKeyboard` in addition to `ViaKeyboard`.
