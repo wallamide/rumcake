@@ -44,7 +44,7 @@ jobs:
         working-directory: ${{ env.ASTRO_BUILD_PATH }}
 
       - name: Build with Astro
-        run: yarn astro build
+        run: yarn build
         working-directory: ${{ env.ASTRO_BUILD_PATH }}
 
       - name: Upload artifact

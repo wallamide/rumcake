@@ -3,6 +3,25 @@ name = "rumcake"
 version = "0.1.0"
 edition = "2021"
 
+[package.metadata.rumcake_docs]
+# Metadata for generating docs using ../docs/scripts/gen_api_docs.js
+# API doc generation is inspired by they way embassy-rs generates their docs: https://github.com/embassy-rs/docserver
+features = [
+  "rgb-backlight-matrix",
+  "underglow",
+  "usb",
+  "vial",
+  "display",
+  "split-peripheral",
+  "split-central",
+]
+
+flavours = [
+  { feature = "nrf52840", triple = "thumbv7em-none-eabihf", extra_features = ["nrf-ble", "bluetooth"] },
+  { feature = "stm32f072cb", triple = "thumbv6m-none-eabi", extra_features = [] },
+  { feature = "stm32f303cb", triple = "thumbv7em-none-eabihf", extra_features = [] },
+]
+
 [dependencies]
 cortex-m = { version = "0.7.6", optional = true }
 defmt = "0.3"

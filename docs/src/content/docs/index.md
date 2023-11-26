@@ -10,7 +10,7 @@ hero:
       icon: right-arrow
       variant: primary
     - text: Read the API docs
-      link: https://github.com/Univa/rumcake
+      link: api/
       icon: external
 ---
 

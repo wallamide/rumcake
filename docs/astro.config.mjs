@@ -40,7 +40,7 @@ export default defineConfig({
         },
         {
           label: "API Reference",
-          link: "https://github.com/Univa/rumcake",
+          link: "api/",
         },
       ],
     }),
