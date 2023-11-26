@@ -76,6 +76,24 @@ function main() {
     }
   };
 
+  const delete_lock_file = (folder) => {
+    for (const file of fs
+      .readdirSync(folder, { withFileTypes: true })
+      .filter(
+        (file) =>
+          file.isDirectory() || (file.isFile() && file.name === ".lock"),
+      )) {
+      // Update html in the folder
+      if (file.isDirectory()) {
+        delete_lock_file(path.join(folder, file.name));
+        continue;
+      }
+
+      // Otherwise, we have a lock file. Delete it.
+      fs.rmSync(path.join(folder, file.name));
+    }
+  };
+
   let error = false;
 
   // generate docs
@@ -99,6 +117,7 @@ function main() {
         output_dir.toString(),
         "--manifest-path",
         path.join("..", "rumcake", "Cargo.toml").toString(),
+        "--quiet",
       ],
       {
         stdio: "inherit",
@@ -129,14 +148,13 @@ function main() {
       redirect_template({ url: "rumcake" }),
     );
 
+    // Remove the .lock file in the docs (GitHub doesn't like it because it doesn't have the right permissions)
+    delete_lock_file(doc_folder);
+
     // Copy the results to ./dist
-    fs.cpSync(
-      path.join(output_dir, target.triple, "doc"),
-      path.join(".", "dist", "api", target.feature),
-      {
-        recursive: true,
-      },
-    );
+    fs.cpSync(doc_folder, path.join(".", "dist", "api", target.feature), {
+      recursive: true,
+    });
   }
 
   // Remove temp folder
