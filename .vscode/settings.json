@@ -1,0 +1,13 @@
+{
+  "rust-analyzer.linkedProjects": [
+    ".\\rumcake\\Cargo.toml",
+    ".\\rumcake\\Cargo.toml",
+    ".\\rumcake\\Cargo.toml",
+    ".\\rumcake\\Cargo.toml"
+  ],
+  "cSpell.words": [
+    "micromath",
+    "powf",
+    "signum"
+  ]
+}

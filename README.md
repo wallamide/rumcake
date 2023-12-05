@@ -9,16 +9,18 @@
 
 <!--toc:start-->
 
-- [About](#about)
-  - [Minimum Supported Rust Version](#minimum-supported-rust-version)
-- [MCUs](#mcus)
-  - [Tested](#tested)
-  - [Planned MCUs for the future](#planned-mcus-for-the-future)
-- [Features](#features)
-  - [Working](#working)
-  - [Planned](#planned)
-- [Why the name "rumcake"](#why-the-name-rumcake)
-- [Acknowledgements](#acknowledgements)
+- [rumcake](#rumcake)
+  - [User Docs - API Reference](#user-docs---api-reference)
+  - [About](#about)
+    - [Minimum Supported Rust Version](#minimum-supported-rust-version)
+  - [MCUs](#mcus)
+    - [Tested](#tested)
+    - [Planned MCUs for the future](#planned-mcus-for-the-future)
+  - [Features](#features)
+    - [Working](#working)
+    - [Planned](#planned)
+  - [Why the name "rumcake"](#why-the-name-rumcake)
+  - [Acknowledgements](#acknowledgements)
 <!--toc:end-->
 
 ## About
@@ -72,6 +74,7 @@ The following features are _working_, but may not be stable or has missing compo
 ### Planned
 
 - Encoders
+- Azoteq TPS-xx touchpad
 
 ## Why the name "rumcake"
 
