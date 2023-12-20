@@ -99,4 +99,6 @@ A huge thanks goes to the following projects:
   - Very helpful reference for developing a keyboard firmware using [embassy-rs](https://github.com/embassy-rs/embassy)
 - [TeXitoi's keyseebee project](https://github.com/TeXitoi/keyseebee)
   - Another helpful reference for a rust-based keyboard firmware
+- [Robert Walker's eskarp project](https://github.com/rwalkr/eskarp/)
+  - Great reference for adding azoteq TPS-xx touchpad support 
 - Any dependency used by rumcake. Building this would be a lot more difficult without them!
